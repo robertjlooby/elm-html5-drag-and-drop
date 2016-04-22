@@ -3,36 +3,55 @@ module Main (..) where
 import Box
 import BoxList
 import Effects exposing (Effects, Never)
-import Html exposing (div, Html, text)
+import Html exposing (button, div, Html, text)
 import Html.Attributes exposing (style)
+import Html.Events exposing (onClick)
 import StartApp exposing (start)
 import Task
 
 
+type alias ID =
+  Int
+
+
 type alias Model =
-  { boxLists : List BoxList.Model
+  { boxLists : List ( ID, BoxList.Model )
+  , nextId : ID
   }
 
 
 type Action
-  = None
+  = AddNewBoxList
 
 
 update : Action -> Model -> ( Model, Effects Action )
 update action model =
-  ( model, Effects.none )
+  case action of
+    AddNewBoxList ->
+      let
+        newModel =
+          { model
+            | boxLists = List.append model.boxLists [ ( model.nextId, BoxList.Model [] ) ]
+            , nextId = model.nextId + 1
+          }
+      in
+        ( newModel, Effects.none )
 
 
 view : Signal.Address Action -> Model -> Html
 view address model =
-  div [] <| List.map BoxList.view model.boxLists
+  div
+    []
+    [ div [] <| List.map BoxList.view (List.map snd model.boxLists)
+    , button [ onClick address AddNewBoxList ] [ text "Add new list" ]
+    ]
 
 
 app : StartApp.App Model
 app =
   let
     initialModel =
-      Model []
+      Model [] 0
   in
     start
       { init = ( initialModel, Effects.none )
