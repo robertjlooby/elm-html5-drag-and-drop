@@ -32,12 +32,14 @@ app : StartApp.App Model
 app =
   let
     initialModel =
-      Model
-        [ BoxList.Model [ Box.Model, Box.Model, Box.Model ]
-        , BoxList.Model [ Box.Model, Box.Model ]
-        ]
+      Model []
   in
-    start { init = ( initialModel, Effects.none ), view = view, update = update, inputs = [] }
+    start
+      { init = ( initialModel, Effects.none )
+      , view = view
+      , update = update
+      , inputs = []
+      }
 
 
 main : Signal Html
