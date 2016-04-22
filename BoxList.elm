@@ -17,7 +17,6 @@ view model =
       style
         [ ( "border", "black solid" )
         , ( "overflow", "auto" )
-        , ( "float", "left" )
         , ( "width", "110px" )
         , ( "height", "100%" )
         , ( "margin", "5px" )

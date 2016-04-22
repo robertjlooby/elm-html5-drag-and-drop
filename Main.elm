@@ -22,6 +22,7 @@ type alias Model =
 
 type Action
   = AddNewBoxList
+  | RemoveBoxList ID
 
 
 update : Action -> Model -> ( Model, Effects Action )
@@ -37,13 +38,31 @@ update action model =
       in
         ( newModel, Effects.none )
 
+    RemoveBoxList id ->
+      let
+        newModel =
+          { model
+            | boxLists = List.filter (\( id', _ ) -> id' /= id) model.boxLists
+          }
+      in
+        ( newModel, Effects.none )
+
 
 view : Signal.Address Action -> Model -> Html
 view address model =
   div
     []
-    [ div [] <| List.map BoxList.view (List.map snd model.boxLists)
+    [ div [] <| List.map (boxListView address) model.boxLists
     , button [ onClick address AddNewBoxList ] [ text "Add new list" ]
+    ]
+
+
+boxListView : Signal.Address Action -> ( ID, BoxList.Model ) -> Html
+boxListView address ( id, boxList ) =
+  div
+    [ style [ ( "float", "left" ) ] ]
+    [ (BoxList.view boxList)
+    , button [ onClick address <| RemoveBoxList id ] [ text "Remove" ]
     ]
 
 
