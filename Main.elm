@@ -5,7 +5,8 @@ import BoxList
 import Effects exposing (Effects, Never)
 import Html exposing (button, div, Html, text)
 import Html.Attributes exposing (style)
-import Html.Events exposing (onClick)
+import Html.Events exposing (on, onClick)
+import Json.Decode exposing (at, string, succeed)
 import StartApp exposing (start)
 import Task
 
@@ -65,7 +66,11 @@ update action model =
 view : Signal.Address Action -> Model -> Html
 view address model =
   div
-    []
+    [ on
+        "dragstart"
+        (at [ "target", "id" ] string)
+        (\id -> Signal.message address (Debug.log id <| RemoveBoxList -1))
+    ]
     [ div [] <| List.map (boxListView address) model.boxLists
     , button [ onClick address AddNewBoxList ] [ text "Add new list" ]
     ]

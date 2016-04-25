@@ -3,7 +3,8 @@ module BoxList (..) where
 import Box
 import Html exposing (button, div, Html, text)
 import Html.Attributes exposing (style)
-import Html.Events exposing (onClick)
+import Html.Events exposing (on, onClick, onWithOptions, targetValue)
+import Json.Decode exposing (at, string, succeed)
 
 
 type alias Model =
@@ -13,6 +14,7 @@ type alias Model =
 
 type Action
   = AddBox
+  | NoOp
 
 
 update : Action -> Model -> Model
@@ -20,6 +22,9 @@ update action model =
   case action of
     AddBox ->
       { model | boxes = List.append model.boxes [ Box.Model ] }
+
+    NoOp ->
+      model
 
 
 view : Signal.Address Action -> Model -> Html
@@ -36,7 +41,17 @@ view address model =
         ]
   in
     div
-      [ boxesStyle ]
+      [ boxesStyle
+      , on
+          "drop"
+          (at [ "dataTransfer", "draggedId" ] string)
+          (\id -> Signal.message address (Debug.log id AddBox))
+      , onWithOptions
+          "dragover"
+          { preventDefault = True, stopPropagation = True }
+          (succeed "")
+          (\_ -> Signal.message address NoOp)
+      ]
       <| List.append
           [ button [ onClick address AddBox ] [ text "+" ] ]
           (List.map Box.view model.boxes)
