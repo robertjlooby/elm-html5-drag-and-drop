@@ -7,6 +7,7 @@ import Html exposing (button, div, Html, text)
 import Html.Attributes exposing (style)
 import Html.Events exposing (on, onClick, onWithOptions, targetValue)
 import Json.Decode exposing (at, int, string, succeed)
+import Random.PCG as Random exposing (generate, Generator, independentSeed, initialSeed)
 import StartApp exposing (start)
 import String
 import Task
@@ -20,6 +21,7 @@ type alias Model =
   { boxLists : List ( ID, BoxList.Model )
   , nextId : ID
   , lastDragged : Maybe ( ID, Int )
+  , seed : Random.Seed
   }
 
 
@@ -32,6 +34,11 @@ type Action
   | NoOp
 
 
+boxListGenerator : Generator BoxList.Model
+boxListGenerator =
+  Random.map (BoxList.Model []) independentSeed
+
+
 update : Action -> Model -> ( Model, Effects Action )
 update action model =
   case action of
@@ -40,10 +47,14 @@ update action model =
 
     AddNewBoxList ->
       let
+        ( newBoxList, newSeed ) =
+          generate boxListGenerator model.seed
+
         newModel =
           { model
-            | boxLists = List.append model.boxLists [ ( model.nextId, BoxList.Model [] ) ]
+            | boxLists = List.append model.boxLists [ ( model.nextId, newBoxList ) ]
             , nextId = model.nextId + 1
+            , seed = newSeed
           }
       in
         ( newModel, Effects.none )
@@ -160,7 +171,7 @@ app : StartApp.App Model
 app =
   let
     initialModel =
-      Model [] 0 Nothing
+      Model [] 0 Nothing (initialSeed 0)
   in
     start
       { init = ( initialModel, Effects.none )
