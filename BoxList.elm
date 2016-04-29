@@ -6,6 +6,7 @@ import Html exposing (button, div, Html, text)
 import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
 import Random.PCG as Random exposing (generate, Generator)
+import Uuid exposing (Uuid, uuidGenerator)
 
 
 type alias Model =
@@ -18,13 +19,16 @@ type Action
   = AddBox
 
 
-colorGenerator : Generator Color
-colorGenerator =
+boxGenerator : Generator Box.Model
+boxGenerator =
   let
     intGenerator =
       Random.int 0 255
+
+    colorGenerator =
+      Random.map3 Color.rgb intGenerator intGenerator intGenerator
   in
-    Random.map3 Color.rgb intGenerator intGenerator intGenerator
+    Random.map2 Box.Model colorGenerator uuidGenerator
 
 
 update : Action -> Model -> Model
@@ -32,16 +36,30 @@ update action model =
   case action of
     AddBox ->
       let
-        ( color, newSeed ) =
-          generate colorGenerator model.seed
-
-        newBox =
-          Box.Model color
+        ( newBox, newSeed ) =
+          generate boxGenerator model.seed
       in
         { model
           | boxes = List.append model.boxes [ newBox ]
           , seed = newSeed
         }
+
+
+removeBox : Uuid -> Model -> ( Maybe Box.Model, Model )
+removeBox id model =
+  let
+    ( removedBox, listWithoutRemovedBox ) =
+      List.foldr
+        (\box ( maybeBox, list ) ->
+          if box.id == id then
+            ( Just box, list )
+          else
+            ( maybeBox, box :: list )
+        )
+        ( Nothing, [] )
+        model.boxes
+  in
+    ( removedBox, { model | boxes = listWithoutRemovedBox } )
 
 
 view : Signal.Address Action -> Model -> Html
@@ -61,4 +79,4 @@ view address model =
       [ boxesStyle ]
       <| List.append
           [ button [ onClick address AddBox ] [ text "+" ] ]
-          (List.indexedMap Box.view model.boxes)
+          (List.map Box.view model.boxes)

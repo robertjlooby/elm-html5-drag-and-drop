@@ -6,11 +6,12 @@ import Effects exposing (Effects, Never)
 import Html exposing (button, div, Html, text)
 import Html.Attributes exposing (style)
 import Html.Events exposing (on, onClick, onWithOptions, targetValue)
-import Json.Decode exposing (at, int, string, succeed)
+import Json.Decode exposing (at, customDecoder, Decoder, int, string, succeed)
 import Random.PCG as Random exposing (generate, Generator, independentSeed, initialSeed)
 import StartApp exposing (start)
 import String
 import Task
+import Uuid exposing (Uuid)
 
 
 type alias ID =
@@ -20,7 +21,7 @@ type alias ID =
 type alias Model =
   { boxLists : List ( ID, BoxList.Model )
   , nextId : ID
-  , lastDragged : Maybe ( ID, Int )
+  , lastDragged : Maybe Uuid
   , seed : Random.Seed
   }
 
@@ -29,7 +30,7 @@ type Action
   = AddNewBoxList
   | RemoveBoxList ID
   | ModifyBoxList ID BoxList.Action
-  | UpdateLastDragged ( ID, Int )
+  | UpdateLastDragged Uuid
   | HandleDropped ID
   | NoOp
 
@@ -81,40 +82,22 @@ update action model =
       in
         ( newModel, Effects.none )
 
-    UpdateLastDragged ( boxListId, boxIndex ) ->
-      ( { model | lastDragged = Just ( boxListId, boxIndex ) }, Effects.none )
+    UpdateLastDragged boxId ->
+      ( { model | lastDragged = Just boxId }, Effects.none )
 
-    HandleDropped id ->
+    HandleDropped droppedBoxListId ->
       case model.lastDragged of
         Nothing ->
           ( model, Effects.none )
 
-        Just ( fromBoxListId, boxIndex ) ->
+        Just boxId ->
           let
-            ( draggedBox, boxListsWithoutDraggedBox ) =
-              List.foldr
-                (\( id', boxList ) ( maybeBox, boxLists ) ->
-                  if fromBoxListId == id' then
-                    let
-                      droppedBox =
-                        List.drop boxIndex boxList.boxes
-                          |> List.head
+            partitionedLists =
+              List.map (\( id, boxList ) -> ( id, BoxList.removeBox boxId boxList )) model.boxLists
 
-                      listWithoutDroppedBox =
-                        boxList.boxes
-                          |> List.indexedMap (,)
-                          |> List.filter (\( i, _ ) -> i /= boxIndex)
-                          |> List.map snd
-
-                      boxListWithoutDroppedBox =
-                        { boxList | boxes = listWithoutDroppedBox }
-                    in
-                      ( droppedBox, ( id', boxListWithoutDroppedBox ) :: boxLists )
-                  else
-                    ( maybeBox, ( id', boxList ) :: boxLists )
-                )
-                ( Nothing, [] )
-                model.boxLists
+            draggedBox =
+              List.filterMap (\( _, ( draggedBox, _ ) ) -> draggedBox) partitionedLists
+                |> List.head
           in
             case draggedBox of
               Nothing ->
@@ -123,16 +106,20 @@ update action model =
               Just box ->
                 let
                   newBoxLists =
-                    List.map
-                      (\( id', boxList ) ->
-                        if id' == id then
-                          ( id', { boxList | boxes = List.append boxList.boxes [ box ] } )
+                    List.foldr
+                      (\( id, ( _, boxList ) ) boxLists ->
+                        if id == droppedBoxListId then
+                          ( id, { boxList | boxes = List.append boxList.boxes [ box ] } ) :: boxLists
                         else
-                          ( id', boxList )
+                          ( id, boxList ) :: boxLists
                       )
-                      boxListsWithoutDraggedBox
+                      []
+                      partitionedLists
+
+                  newModel =
+                    { model | boxLists = newBoxLists }
                 in
-                  ( { model | boxLists = newBoxLists }, Effects.none )
+                  ( newModel, Effects.none )
 
 
 view : Signal.Address Action -> Model -> Html
@@ -144,14 +131,19 @@ view address model =
     ]
 
 
+uuidDecoder : Decoder Uuid
+uuidDecoder =
+  customDecoder string (Result.fromMaybe "failed to parse Uuid" << Uuid.fromString)
+
+
 boxListView : Signal.Address Action -> ( ID, BoxList.Model ) -> Html
 boxListView address ( id, boxList ) =
   div
     [ style [ ( "float", "left" ) ]
     , on
         "dragstart"
-        (at [ "target", "id" ] string)
-        (\boxId -> Signal.message address <| UpdateLastDragged ( id, String.toInt boxId |> Result.toMaybe |> Maybe.withDefault -1 ))
+        (at [ "target", "id" ] uuidDecoder)
+        (\boxId -> Signal.message address <| UpdateLastDragged boxId)
     , on
         "drop"
         (succeed "dropped")
