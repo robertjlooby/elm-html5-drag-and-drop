@@ -3,15 +3,17 @@ module Box (..) where
 import Color exposing (Color, toRgb)
 import Html exposing (div, Html)
 import Html.Attributes exposing (draggable, id, style)
+import Uuid exposing (Uuid)
 
 
 type alias Model =
   { color : Color
+  , id : Uuid
   }
 
 
-view : Int -> Model -> Html
-view index model =
+view : Model -> Html
+view model =
   let
     color =
       toRgb model.color
@@ -28,4 +30,4 @@ view index model =
         , ( "margin", "5px" )
         ]
   in
-    div [ boxStyle, draggable "true", id <| toString index ] []
+    div [ boxStyle, draggable "true", id <| Uuid.toString model.id ] []
