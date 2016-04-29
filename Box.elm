@@ -1,15 +1,15 @@
 module Box (..) where
 
 import Html exposing (div, Html)
-import Html.Attributes exposing (draggable, style)
+import Html.Attributes exposing (draggable, id, style)
 
 
 type alias Model =
   {}
 
 
-view : Model -> Html
-view model =
+view : Int -> Model -> Html
+view index model =
   let
     boxStyle =
       style
@@ -20,4 +20,4 @@ view model =
         , ( "margin", "5px" )
         ]
   in
-    div [ boxStyle, draggable "true" ] []
+    div [ boxStyle, draggable "true", id <| toString index ] []

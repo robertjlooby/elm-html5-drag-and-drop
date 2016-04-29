@@ -5,9 +5,10 @@ import BoxList
 import Effects exposing (Effects, Never)
 import Html exposing (button, div, Html, text)
 import Html.Attributes exposing (style)
-import Html.Events exposing (on, onClick)
-import Json.Decode exposing (at, string, succeed)
+import Html.Events exposing (on, onClick, onWithOptions, targetValue)
+import Json.Decode exposing (at, int, string, succeed)
 import StartApp exposing (start)
+import String
 import Task
 
 
@@ -18,6 +19,7 @@ type alias ID =
 type alias Model =
   { boxLists : List ( ID, BoxList.Model )
   , nextId : ID
+  , lastDragged : Maybe ( ID, Int )
   }
 
 
@@ -25,11 +27,17 @@ type Action
   = AddNewBoxList
   | RemoveBoxList ID
   | ModifyBoxList ID BoxList.Action
+  | UpdateLastDragged ( ID, Int )
+  | HandleDropped ID
+  | NoOp
 
 
 update : Action -> Model -> ( Model, Effects Action )
 update action model =
   case action of
+    NoOp ->
+      ( model, Effects.none )
+
     AddNewBoxList ->
       let
         newModel =
@@ -62,15 +70,64 @@ update action model =
       in
         ( newModel, Effects.none )
 
+    UpdateLastDragged ( boxListId, boxIndex ) ->
+      ( { model | lastDragged = Just ( boxListId, boxIndex ) }, Effects.none )
+
+    HandleDropped id ->
+      case model.lastDragged of
+        Nothing ->
+          ( model, Effects.none )
+
+        Just ( fromBoxListId, boxIndex ) ->
+          let
+            ( draggedBox, boxListsWithoutDraggedBox ) =
+              List.foldr
+                (\( id', boxList ) ( maybeBox, boxLists ) ->
+                  if fromBoxListId == id' then
+                    let
+                      droppedBox =
+                        List.drop boxIndex boxList.boxes
+                          |> List.head
+
+                      listWithoutDroppedBox =
+                        boxList.boxes
+                          |> List.indexedMap (,)
+                          |> List.filter (\( i, _ ) -> i /= boxIndex)
+                          |> List.map snd
+
+                      boxListWithoutDroppedBox =
+                        { boxList | boxes = listWithoutDroppedBox }
+                    in
+                      ( droppedBox, ( id', boxListWithoutDroppedBox ) :: boxLists )
+                  else
+                    ( maybeBox, ( id', boxList ) :: boxLists )
+                )
+                ( Nothing, [] )
+                model.boxLists
+          in
+            case draggedBox of
+              Nothing ->
+                ( model, Effects.none )
+
+              Just box ->
+                let
+                  newBoxLists =
+                    List.map
+                      (\( id', boxList ) ->
+                        if id' == id then
+                          ( id', { boxList | boxes = List.append boxList.boxes [ box ] } )
+                        else
+                          ( id', boxList )
+                      )
+                      boxListsWithoutDraggedBox
+                in
+                  ( { model | boxLists = newBoxLists }, Effects.none )
+
 
 view : Signal.Address Action -> Model -> Html
 view address model =
   div
-    [ on
-        "dragstart"
-        (at [ "target", "id" ] string)
-        (\id -> Signal.message address (Debug.log id <| RemoveBoxList -1))
-    ]
+    []
     [ div [] <| List.map (boxListView address) model.boxLists
     , button [ onClick address AddNewBoxList ] [ text "Add new list" ]
     ]
@@ -79,7 +136,21 @@ view address model =
 boxListView : Signal.Address Action -> ( ID, BoxList.Model ) -> Html
 boxListView address ( id, boxList ) =
   div
-    [ style [ ( "float", "left" ) ] ]
+    [ style [ ( "float", "left" ) ]
+    , on
+        "dragstart"
+        (at [ "target", "id" ] string)
+        (\boxId -> Signal.message address <| UpdateLastDragged ( id, String.toInt boxId |> Result.toMaybe |> Maybe.withDefault -1 ))
+    , on
+        "drop"
+        (succeed "dropped")
+        (\_ -> Signal.message address (HandleDropped id))
+    , onWithOptions
+        "dragover"
+        { preventDefault = True, stopPropagation = True }
+        (succeed "dragged over")
+        (\_ -> Signal.message address NoOp)
+    ]
     [ (BoxList.view (Signal.forwardTo address <| ModifyBoxList id) boxList)
     , button [ onClick address <| RemoveBoxList id ] [ text "Remove" ]
     ]
@@ -89,7 +160,7 @@ app : StartApp.App Model
 app =
   let
     initialModel =
-      Model [] 0
+      Model [] 0 Nothing
   in
     start
       { init = ( initialModel, Effects.none )
