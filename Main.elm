@@ -3,10 +3,9 @@ module Main exposing (..)
 import Box
 import BoxList
 import Html exposing (button, div, Html, text)
-import Html.App as App
 import Html.Attributes exposing (style)
 import Html.Events exposing (on, onClick, onWithOptions)
-import Json.Decode as Decode exposing (at, customDecoder, Decoder, int, string, succeed)
+import Json.Decode as Decode exposing (at, Decoder, int, string, succeed)
 import Random.Pcg as Random exposing (step, Generator, independentSeed, initialSeed)
 import Uuid exposing (Uuid)
 
@@ -61,18 +60,18 @@ update msg model =
             let
                 newModel =
                     { model
-                        | boxLists = List.filter (\( id', _ ) -> id' /= id) model.boxLists
+                        | boxLists = List.filter (\( id_, _ ) -> id_ /= id) model.boxLists
                     }
             in
                 ( newModel, Cmd.none )
 
         ModifyBoxList id boxListAction ->
             let
-                updateById ( id', boxList ) =
-                    if id' == id then
-                        ( id', BoxList.update boxListAction boxList )
+                updateById ( id_, boxList ) =
+                    if id_ == id then
+                        ( id_, BoxList.update boxListAction boxList )
                     else
-                        ( id', boxList )
+                        ( id_, boxList )
 
                 newModel =
                     { model | boxLists = List.map updateById model.boxLists }
@@ -129,7 +128,10 @@ view model =
 
 uuidDecoder : Decoder Uuid
 uuidDecoder =
-    customDecoder string (Result.fromMaybe "failed to parse Uuid" << Uuid.fromString)
+    string
+        |> Decode.map Uuid.fromString
+        |> Decode.map (Maybe.map Decode.succeed)
+        |> Decode.andThen (Maybe.withDefault <| Decode.fail "failed to parse Uuid")
 
 
 boxListView : ( ID, BoxList.Model ) -> Html Msg
@@ -144,18 +146,18 @@ boxListView ( id, boxList ) =
             { preventDefault = True, stopPropagation = True }
             (succeed NoOp)
         ]
-        [ App.map (ModifyBoxList id) (BoxList.view boxList)
+        [ Html.map (ModifyBoxList id) (BoxList.view boxList)
         , button [ onClick <| RemoveBoxList id ] [ text "Remove" ]
         ]
 
 
-main : Program Never
+main : Program Never Model Msg
 main =
     let
         initialModel =
             Model [] 0 Nothing (initialSeed 0)
     in
-        App.program
+        Html.program
             { init = ( initialModel, Cmd.none )
             , view = view
             , update = update
