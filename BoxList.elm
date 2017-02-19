@@ -75,6 +75,6 @@ view model =
                 , ( "min-height", "100px" )
                 ]
     in
-        div [ boxesStyle ]
-            <| List.append [ button [ onClick AddBox ] [ text "+" ] ]
+        div [ boxesStyle ] <|
+            List.append [ button [ onClick AddBox ] [ text "+" ] ]
                 (List.map Box.view model.boxes)
